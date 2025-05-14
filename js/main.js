@@ -311,8 +311,8 @@ function createSplatMesh(texture, count, indexBuffer) {
                     u_texture: { value: undefined },
                     projection: { value: new THREE.Matrix4() },
                     view: { value: new THREE.Matrix4() },
-                    focal: { value: new THREE.Vector2(cameraParams.fx, cameraParams.fy) },
-                    viewport: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) }
+                    focal: { value: new THREE.Vector2(0,0) },
+                    viewport: { value: new THREE.Vector2(0,0) }
                 };
 
 
@@ -352,29 +352,6 @@ function createSplatMesh(texture, count, indexBuffer) {
                     0., focal.y / cam.z, -(focal.y * cam.y) / (cam.z * cam.z),
                     0., 0., 0.
                 );
-/*
-                 float DEG2RAD = acos(-1.0f) / 180.;
-    float FOV = 40.*DEG2RAD;
-    float n = 0.005;
-    float f = 10000.;
-    float w = viewport.x;
-    float h = viewport.y;
-    float aspect = w/h;
-    
-    float t = n * tan(FOV);
-    float r = t * aspect;
-
-    //float r = n * tan(FOV);
-    //float t = r * aspect;
-    
-    
-
-    J = mat3(0.5*w*n/r/cam.z, 0., -0.5*w*n/r/(cam.z*cam.z)*cam.x,
-            0., 0.5*h*n/t/cam.z, -0.5*h*n/t/(cam.z*cam.z)*cam.y,
-            0., 0., 0.
-            );
-                                    */
-
 
 
                 mat3 T = transpose(mat3(view)) * J;
@@ -504,61 +481,8 @@ AFRAME.registerComponent('custom-instanced-mesh', {
   });
 
 
-//console.log(material.uniforms.u_texture.value);
-
-AFRAME.registerComponent('camera-listener', {
-
-  init: function () {
-
-    this.loaded = loaded;
-
-    const sceneEl = this.el.sceneEl;
-
-/*
-    this.el.sceneEl.renderer.setClearColor(0x000000, 0);
-    const camera = this.el.sceneEl.camera;
-    camera.projectionMatrix.set(...getProjectionMatrix(cameraParams.fx, cameraParams.fy, window.innerWidth, window.innerHeight));
-    camera.projectionMatrix.transpose();
-*/    
-  },
-
-
-  tick: function () {
-    if(this.loaded.value)
-    {
-
-
-        const cameraEl = this.el.sceneEl.cameraEl;
-        if(!cameraEl) return;
-        const camera = cameraEl.getObject3D('camera');
-        console.log('Camera Aspect Ratio:', camera.aspect);
-        console.log('Camera Field of View:', camera.fov);
-        console.log('Camera Near Clipping Plane:', camera.near);
-        console.log('Camera Far Clipping Plane:', camera.far);
-        console.log('Camera Position:', camera.position);
-        console.log('Camera Rotation:', camera.rotation);
-        console.log('Camera Matrix World:', camera.matrixWorld);
-        /*
-        var position = new THREE.Vector3();
-    var quaternion = new THREE.Quaternion();
-     const cameraEl = document.querySelector('[camera]');
-    cameraEl.object3D.getWorldPosition(position);
-      this.el.object3D.getWorldQuaternion(quaternion);
-        console.log(position);
-    console.log(quaternion);
-
-        splatMesh.material.uniforms.view.value.copy(camera.matrixWorldInverse)
-        splatMesh.material.uniforms.projection.value.copy(camera.projectionMatrix);
-        updateSplatSorting(splatMesh, camera, vertexCount, splatData, indexBuffer);
-        */
-    }
-    
-  }
-});
 
 const dimensions = {h:null, w: null}
-
-
 
 
 AFRAME.registerComponent('get-source-dimentions', {
@@ -629,10 +553,10 @@ AFRAME.registerComponent('log-camera-params', {
         if (this.camera) {
             this.sceneEl.renderer.setClearColor(0x000000, 0);
             
+            this.sceneEl.canvas.width = dimensions.w; // Get acutal source dimentions <----------------------------------------------------------------
+        this.sceneEl.canvas.height = dimensions.h;
+        this.camera.updateProjectionMatrix();
             
-            
-            
-
           //console.log('Camera Projection Matrix:', this.camera.projectionMatrix.toArray());
           //console.log('Camera Position:', this.camera.position.toArray());
           // Access other camera properties as needed: fov, aspect, near, far, etc.
@@ -650,44 +574,6 @@ AFRAME.registerComponent('log-camera-params', {
     if(!this.loaded.value) return;
     if(!this.once.val1 && this.camera.aspect != Infinity)
     {
-        /*
-        this.camera.aspect = window.innerWidth/window.innerHeight;
-        console.log(this.camera.aspect + " :)");
-        */
-        const v = new THREE.Vector2();
-        this.sceneEl.renderer.getSize(v)
-        console.log( v, ":=9876");
-            console.log(this.sceneEl.renderer);
-        const fovRad = THREE.MathUtils.degToRad(this.camera.fov);
-        this.fy = window.innerHeight / (2 * Math.tan(fovRad / 2));
-        this.fx = this.fy * this.camera.aspect;
-
-        console.log(this.fx, this.fy)
-        console.log(innerWidth, innerHeight)
-        console.log(this.camera);
-/*
-        window.innerHeight / (2  * tan(FOV)) * aspect
-
-        window.innerWidth * n / (n*tan(FOV)*aspect)
-        float FOV = 40.*DEG2RAD;
-        float n = 0.2;
-        float f = 200.;
-        float aspect = 1.333333333333;
-        
-        float t = n * tan(FOV);
-        float r = t * aspect;
-
-        //float r = n * tan(FOV);
-        //float t = r * aspect;
-        
-        float w = viewport.x;
-        float h = viewport.y;
-
-        J = mat3(0.5*w*n/r/cam.z, 0., -0.5*w*n/r/(cam.z*cam.z)*cam.x,
-                0., 0.5*h*n/t/cam.z, -0.5*h*n/t/(cam.z*cam.z)*cam.y,
-                0., 0., 0.
-                );
-*/
 
         this.once.val1 = true;
     }
