@@ -165,8 +165,14 @@ function createSplatMesh(texture, count, indexBuffer) {
 
             void main () {
                 uvec4 cen = texelFetch(u_texture, ivec2((uint(index) & 0x3ffu) << 1, uint(index) >> 10), 0);
-                vec4 cam = view * vec4(uintBitsToFloat(cen.xyz), 1) ;
-                vec4 pos2d = projection * cam;
+
+                vec3 center = uintBitsToFloat(cen.xyz);
+                vec4 cam = view * vec4(center, 1) ;
+                mat4 invertedProj = projection;
+                vec4 pos2d = invertedProj * cam;
+
+
+
 
                 float clip = 1.2 * pos2d.w;
                 if (pos2d.z < -clip || pos2d.x < -clip || pos2d.x > clip || pos2d.y < -clip || pos2d.y > clip) {
@@ -184,28 +190,6 @@ function createSplatMesh(texture, count, indexBuffer) {
                     0., 0., 0.
                 );
 
-/*
-                 float DEG2RAD = acos(-1.0f) / 180.;
-    float FOV = 40.*DEG2RAD;
-    float n = 0.005;
-    float f = 10000.;
-    float w = viewport.x;
-    float h = viewport.y;
-    float aspect = w/h;
-    
-    float t = n * tan(FOV);
-    float r = t * aspect;
-
-    //float r = n * tan(FOV);
-    //float t = r * aspect;
-    
-    
-
-    J = mat3(0.5*w*n/r/cam.z, 0., -0.5*w*n/r/(cam.z*cam.z)*cam.x,
-            0., 0.5*h*n/t/cam.z, -0.5*h*n/t/(cam.z*cam.z)*cam.y,
-            0., 0., 0.
-            );
-                                    */
 
                 mat3 T = transpose(mat3(view)) * J;
                 mat3 cov2d = transpose(T) * Vrk * T;
@@ -222,11 +206,11 @@ function createSplatMesh(texture, count, indexBuffer) {
                 vColor = clamp(pos2d.z/pos2d.w+1.0, 0.0, 1.0) * vec4((cov.w) & 0xffu, (cov.w >> 8) & 0xffu, (cov.w >> 16) & 0xffu, (cov.w >> 24) & 0xffu) / 255.0;
                 vPosition = position.xy;
 
-                vec2 vCenter = vec2(pos2d) / pos2d.w;
+                vec2 vCenter = vec2(pos2d.xy) / pos2d.w;
+
+
                 gl_Position = vec4(vCenter + (position.y * majorAxis + position.x * minorAxis) / viewport, 0.0, 1.0);
 
-
-                    //gl_Position = vec4(vCenter + position.xy * minorAxis / viewport, 0.0, 1.0);
                 }
                                 `,
                     fragmentShader: `
@@ -275,20 +259,21 @@ function createSplatMesh(texture, count, indexBuffer) {
 
 }
 //main();
-function updateSplatSorting(mesh, camera, vertexCount, splatData, indexBuffer) {
+function updateSplatSorting(mesh, camera, vertexCount, splatData) {
                 if (!splatData.buffer) return;
                 const f_buffer = new Float32Array(splatData.buffer);
                 const viewProjMatrix = new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
-                //console.log(viewProjMatrix)
+                //console.log(viewProjMatrix.toArray())
                 let maxDepth = -Infinity;
                 let minDepth = Infinity;
                 let sizeList = new Int32Array(vertexCount);
                 //console.log(viewProjMatrix);
                 for (let i = 0; i < vertexCount; i++) {
+                    const inv = viewProjMatrix.elements[10] < 0 ? 1 : -1;
                     const depth =
                         ((viewProjMatrix.elements[2] * f_buffer[8 * i + 0] +
                             viewProjMatrix.elements[6] * f_buffer[8 * i + 1] +
-                            viewProjMatrix.elements[10] * f_buffer[8 * i + 2]) *
+                            viewProjMatrix.elements[10] * f_buffer[8 * i + 2] * inv) *
                             4096) |
                         0;
                     sizeList[i] = depth;
@@ -380,7 +365,8 @@ AFRAME.registerComponent('get-matrix', {
             //console.log(relativeMatrix)
             splatMesh.material.uniforms.view.value.copy(this.marker.object3D.matrixWorld)
             globCam.matrixWorldInverse = this.marker.object3D.matrixWorld.clone()
-            updateSplatSorting(splatMesh, globCam, vertexCount, splatData, indexBuffer);
+            //console.log(globCam.matrixWorldInverse.toArray())
+            updateSplatSorting(splatMesh, globCam, vertexCount, splatData);
 
         //console.log("Source Dimentions: ", this.arToolkitSource.domElement.clientWidth, this.arToolkitSource.domElement.clientHeight);
     }
@@ -389,50 +375,9 @@ AFRAME.registerComponent('get-matrix', {
 }
 )
 
-function makeProjectionMatrix(fx, fy, cx, cy, width, height, near, far) {
-  const out = new THREE.Matrix4();
-  const elements = new Float32Array(16);
-
-  elements[0] = 2 * fx / width;
-  elements[1] = 0;
-  elements[2] = 0;
-  elements[3] = 0;
-
-  elements[4] = 0;
-  elements[5] = 2 * fy / height;
-  elements[6] = 0;
-  elements[7] = 0;
-
-  elements[8] = 2 * (cx / width) - 1;
-  elements[9] = 2 * (cy / height) - 1;
-  elements[10] = -(far + near) / (far - near);
-  elements[11] = -1;
-
-  elements[12] = 0;
-  elements[13] = 0;
-  elements[14] = -2 * far * near / (far - near);
-  elements[15] = 0;
-
-  out.fromArray(elements);
-  return out;
-}
-
-function getProjectionMatrix(fx, fy, width, height) {
-    const znear = 0.2;
-    const zfar = 200;
-    return [
-        [(2 * fx) / width, 0, 0, 0],
-        [0, (2 * fy) / height, 0, 0],
-        [0, 0, zfar / (zfar - znear), 1],
-        [0, 0, -(zfar * znear) / (zfar - znear), 0],
-    ].flat();
-}
-
 AFRAME.registerComponent('log-camera-params', {
   init: function () {
-    console.log("Hols")
-    console.log(makeProjectionMatrix(515.7638259573954, 913.5884539628396, 540/2, 720/2, 540, 720, 0.2, 200))
-    console.log(getProjectionMatrix(515.7638259573954, 913.5884539628396, 540, 720))
+
     this.sceneEl = this.el.sceneEl;
     this.loaded = loaded;
     this.oldViewMat = new THREE.Matrix4();
@@ -486,7 +431,7 @@ AFRAME.registerComponent('log-camera-params', {
 
         //this.sceneEl.canvas.width = dimensions.w; // Get acutal source dimentions <----------------------------------------------------------------
         //this.sceneEl.canvas.height = dimensions.h;
-        console.log(this.sceneEl.canvas.width, this.sceneEl.canvas.height)
+        //console.log(this.sceneEl.canvas.width, this.sceneEl.canvas.height)
          // See how to obtain the "Actual source dimentionsw" <-------------------------------
         //splatMesh.material.uniforms.projection.value.set(...getProjectionMatrix(this.fx, .fy, window.innerWidth, window.innerHeight));
         //splatMesh.material.uniforms.projection.value.transpose();
