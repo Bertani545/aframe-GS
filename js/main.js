@@ -1,172 +1,3 @@
-//import './style.css'
-//import *  as THREE from 'three'
-
-
-/*
-const fr = new FileReader();
-fr.onload = () => {
-  splatData = new Uint8Array(fr.result);
-  console.log(splatData)
-  console.log("Loaded", Math.floor(splatData.length / rowLength));
-  worker.postMessage({
-    buffer: splatData.buffer,
-    vertexCount: Math.floor(splatData.length / rowLength),
-  });
-}
-
-
-fr.readAsArrayBuffer("./model.splat");
-*/
-
-let cameraParams = {
-    id: 0,
-    img_name: "00001",
-    width: 1959,
-    height: 1090,
-    position: [
-        -3.0089893469241797, -0.11086489695181866, -3.7527640949141428,
-    ],
-    rotation: [
-        [0.876134201218856, 0.06925962026449776, 0.47706599800804744],
-        [-0.04747421839895102, 0.9972110940209488, -0.057586739349882114],
-        [-0.4797239414934443, 0.027805376500959853, 0.8769787916452908],
-    ],
-    fy: 1164.6601287484507,
-    fx: 1159.5880733038064,
-};
-
-function getProjectionMatrix(fx, fy, width, height) {
-    const znear = 0.2;
-    const zfar = 200;
-    return [
-        [(2 * fx) / width, 0, 0, 0],
-        [0, (2 * fy) / height, 0, 0],
-        [0, 0, zfar / (zfar - znear), 1],
-        [0, 0, -(zfar * znear) / (zfar - znear), 0],
-    ].flat();
-}
-
-function makePerspectiveMatrix(fov, aspect, near, far) {
-  const top = near * Math.tan((fov * Math.PI) / 360); // vertical FOV in degrees
-  const height = 2 * top;
-  const width = aspect * height;
-  const left = -0.5 * width;
-  const right = left + width;
-  const bottom = top - height;
-
-  const x = (2 * near) / (right - left);
-  const y = (2 * near) / (top - bottom);
-  const a = (right + left) / (right - left);
-  const b = (top + bottom) / (top - bottom);
-  const c = -far / (far - near);          // Note: different from RH system
-  const d = -far * near / (far - near);   // Note: different from RH system
-
-  return new Float32Array([
-    x,  0,  a,   0,
-    0,  y,  b,   0,
-    0,  0,  c,   d,
-    0,  0,  1,   0    // <- +1 for left-handed system (was -1 in RH)
-  ]);
-}
-  console.log(makePerspectiveMatrix(80, 1.333333333, 0.005, 10000))
-
-
-function updateProjectionMatrix() {
-  const near = this.near;
-
-  // Calculate top extent of the frustum
-  let top = near * Math.tan(0.5 * Math.PI / 180 * this.fov) / this.zoom;
-  let height = 2 * top;
-  let width = this.aspect * height;
-  let left = -0.5 * width;
-
-  const view = this.view;
-
-  // If using a subregion of the camera (view offset)
-  if (view !== null && view.enabled) {
-    const fullWidth = view.fullWidth;
-    const fullHeight = view.fullHeight;
-
-    left += view.offsetX * width / fullWidth;
-    top -= view.offsetY * height / fullHeight;
-    width *= view.width / fullWidth;
-    height *= view.height / fullHeight;//False
-  }
-
-  // Apply film offset if present
-  const filmOffset = this.filmOffset;
-  if (filmOffset !== 0) {
-    left += near * filmOffset / this.getFilmWidth();            // False
-  }
-
-  // Build the projection matrix
-  this.projectionMatrix.makePerspective(
-    left,
-    left + width,
-    top,
-    top - height,
-    near,
-    this.far,
-    this.coordinateSystem // used in r140+ for XR coordinate support
-  );
-
-  // Inverse projection for shaders or post-processing
-  this.projectionMatrixInverse.copy(this.projectionMatrix).invert();
-}
-
-function makePerspective(left, right, top, bottom, near, far, coordinateSystem = PerspectiveCamera.DEFAULT_COORDINATE_SYSTEM) {
-  const te = this.elements;
-
-  // Calculate horizontal and vertical scale
-  const x = 2 * near / (right - left);
-  const y = 2 * near / (top - bottom);
-
-  // Calculate offsets (center of frustum)
-  const a = (right + left) / (right - left);
-  const b = (top + bottom) / (top - bottom);
-
-  let c, d;
-
-  if (coordinateSystem === PerspectiveCamera.DEFAULT_COORDINATE_SYSTEM) {
-    // Standard right-handed perspective matrix
-    c = -(far + near) / (far - near);
-    d = -2 * far * near / (far - near);
-  } else {
-    if (coordinateSystem !== PerspectiveCamera.ALTERNATE_COORDINATE_SYSTEM) {
-      throw new Error("THREE.Matrix4.makePerspective(): Invalid coordinate system: " + coordinateSystem);
-    }
-    // Alternate (e.g. WebXR left-handed) system
-    c = -far / (far - near);
-    d = -far * near / (far - near);
-  }
-
-  // Fill the matrix elements
-  te[0] = x;     te[4] = 0;    te[8]  = a;   te[12] = 0;
-  te[1] = 0;     te[5] = y;    te[9]  = b;   te[13] = 0;
-  te[2] = 0;     te[6] = 0;    te[10] = c;   te[14] = d;
-  te[3] = 0;     te[7] = 0;    te[11] = -1;  te[15] = 0;
-
-  return this;
-}
-
-/*
-
-function getProjectionMatrix(fx, fy, width, height) {
-    const znear = 0.2;
-    const zfar = 200;
-    return [
-        [(2 * fx) / width, 0, 0, 0],
-        [0, -(2 * fy) / height, 0, 0],
-        [0, 0, zfar / (zfar - znear), 1],
-        [0, 0, -(zfar * znear) / (zfar - znear), 0],
-    ].flat();
-}
-
-*/
-
-
-
-
     const rowLength = 3 * 4 + 3 * 4 + 4 + 4;
     let splatData = new Uint8Array();
     let vertexCount = 0;
@@ -353,6 +184,28 @@ function createSplatMesh(texture, count, indexBuffer) {
                     0., 0., 0.
                 );
 
+/*
+                 float DEG2RAD = acos(-1.0f) / 180.;
+    float FOV = 40.*DEG2RAD;
+    float n = 0.005;
+    float f = 10000.;
+    float w = viewport.x;
+    float h = viewport.y;
+    float aspect = w/h;
+    
+    float t = n * tan(FOV);
+    float r = t * aspect;
+
+    //float r = n * tan(FOV);
+    //float t = r * aspect;
+    
+    
+
+    J = mat3(0.5*w*n/r/cam.z, 0., -0.5*w*n/r/(cam.z*cam.z)*cam.x,
+            0., 0.5*h*n/t/cam.z, -0.5*h*n/t/(cam.z*cam.z)*cam.y,
+            0., 0., 0.
+            );
+                                    */
 
                 mat3 T = transpose(mat3(view)) * J;
                 mat3 cov2d = transpose(T) * Vrk * T;
@@ -405,7 +258,7 @@ function createSplatMesh(texture, count, indexBuffer) {
 
 
                 material.uniforms.u_texture.value = texture;
-                material.uniforms.viewport.value = new THREE.Vector2(window.innerWidth, window.innerHeight)
+                material.uniforms.viewport.value = new THREE.Vector2(0,0)
 
 
                 console.log(material.uniforms)
@@ -536,8 +389,50 @@ AFRAME.registerComponent('get-matrix', {
 }
 )
 
+function makeProjectionMatrix(fx, fy, cx, cy, width, height, near, far) {
+  const out = new THREE.Matrix4();
+  const elements = new Float32Array(16);
+
+  elements[0] = 2 * fx / width;
+  elements[1] = 0;
+  elements[2] = 0;
+  elements[3] = 0;
+
+  elements[4] = 0;
+  elements[5] = 2 * fy / height;
+  elements[6] = 0;
+  elements[7] = 0;
+
+  elements[8] = 2 * (cx / width) - 1;
+  elements[9] = 2 * (cy / height) - 1;
+  elements[10] = -(far + near) / (far - near);
+  elements[11] = -1;
+
+  elements[12] = 0;
+  elements[13] = 0;
+  elements[14] = -2 * far * near / (far - near);
+  elements[15] = 0;
+
+  out.fromArray(elements);
+  return out;
+}
+
+function getProjectionMatrix(fx, fy, width, height) {
+    const znear = 0.2;
+    const zfar = 200;
+    return [
+        [(2 * fx) / width, 0, 0, 0],
+        [0, (2 * fy) / height, 0, 0],
+        [0, 0, zfar / (zfar - znear), 1],
+        [0, 0, -(zfar * znear) / (zfar - znear), 0],
+    ].flat();
+}
+
 AFRAME.registerComponent('log-camera-params', {
   init: function () {
+    console.log("Hols")
+    console.log(makeProjectionMatrix(515.7638259573954, 913.5884539628396, 540/2, 720/2, 540, 720, 0.2, 200))
+    console.log(getProjectionMatrix(515.7638259573954, 913.5884539628396, 540, 720))
     this.sceneEl = this.el.sceneEl;
     this.loaded = loaded;
     this.oldViewMat = new THREE.Matrix4();
@@ -554,8 +449,9 @@ AFRAME.registerComponent('log-camera-params', {
             this.sceneEl.renderer.setClearColor(0x000000, 0);
             
             this.sceneEl.canvas.width = dimensions.w; // Get acutal source dimentions <----------------------------------------------------------------
-        this.sceneEl.canvas.height = dimensions.h;
-        this.camera.updateProjectionMatrix();
+            this.sceneEl.canvas.height = dimensions.h;
+            this.camera.updateProjectionMatrix();
+            console.log(this.camera.projectionMatrix.toArray())
             
           //console.log('Camera Projection Matrix:', this.camera.projectionMatrix.toArray());
           //console.log('Camera Position:', this.camera.position.toArray());
@@ -588,9 +484,9 @@ AFRAME.registerComponent('log-camera-params', {
         //splatMesh.material.uniforms.view.value.copy(this.camera.matrixWorldInverse)
         splatMesh.material.uniforms.viewport.value = new THREE.Vector2(dimensions.w, dimensions.h)
 
-        this.sceneEl.canvas.width = dimensions.w; // Get acutal source dimentions <----------------------------------------------------------------
-        this.sceneEl.canvas.height = dimensions.h;
-        this.camera.updateProjectionMatrix();
+        //this.sceneEl.canvas.width = dimensions.w; // Get acutal source dimentions <----------------------------------------------------------------
+        //this.sceneEl.canvas.height = dimensions.h;
+        console.log(this.sceneEl.canvas.width, this.sceneEl.canvas.height)
          // See how to obtain the "Actual source dimentionsw" <-------------------------------
         //splatMesh.material.uniforms.projection.value.set(...getProjectionMatrix(this.fx, .fy, window.innerWidth, window.innerHeight));
         //splatMesh.material.uniforms.projection.value.transpose();
@@ -602,6 +498,8 @@ AFRAME.registerComponent('log-camera-params', {
         //console.log(dimensions.w, dimensions.h)
         //console.log('Camera Projection Matrix:', this.camera.projectionMatrix.toArray());
         //console.log('Camera Position:', this.camera.matrixWorldInverse.toArray());
+        //console.log(this.camera.projectionMatrix.toArray())
+        //console.log(this.fx, this.fy)
   }
 });
 
