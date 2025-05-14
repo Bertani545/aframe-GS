@@ -6,7 +6,7 @@
     const loaded = {value: false};
 
 async function main(){
-await fetch("./js/point_cloud.splat").then(res => res.arrayBuffer()).then(buffer => {
+await fetch("./js/jengibre3d.splat").then(res => res.arrayBuffer()).then(buffer => {
                 splatData = new Uint8Array(buffer);
                 vertexCount = Math.floor(splatData.length / rowLength);
                 indexBuffer = new Uint32Array(vertexCount);
