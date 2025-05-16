@@ -208,7 +208,7 @@ function createSplatMesh(texture, count, indexBuffer) {
                 vec2 minorAxis = min(sqrt(2.0 * lambda2), 1024.0) * vec2(diagonalVector.y, -diagonalVector.x);
 
                 vColor = clamp(pos2d.z/pos2d.w+1.0, 0.0, 1.0) * vec4((cov.w) & 0xffu, (cov.w >> 8) & 0xffu, (cov.w >> 16) & 0xffu, (cov.w >> 24) & 0xffu) / 255.0;
-                vPosition = pos.xy;
+                vPosition = position.xy;
 
                 vec2 vCenter = vec2(pos2d) / pos2d.w;
 
