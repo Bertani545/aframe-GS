@@ -6,7 +6,7 @@
     const loaded = {value: false};
 
 async function main(){
-await fetch("./js/jengibre3d.splat").then(res => res.arrayBuffer()).then(buffer => {
+await fetch("./js/ensalada.splat").then(res => res.arrayBuffer()).then(buffer => {
                 splatData = new Uint8Array(buffer);
                 vertexCount = Math.floor(splatData.length / rowLength);
                 indexBuffer = new Uint32Array(vertexCount);
@@ -18,7 +18,7 @@ await fetch("./js/jengibre3d.splat").then(res => res.arrayBuffer()).then(buffer 
             });
 
 
-function floatToHalf(float) {
+        function floatToHalf(float) {
                 const _floatView = new Float32Array(1);
                 const _int32View = new Int32Array(_floatView.buffer);
                 _floatView[0] = float;
@@ -136,7 +136,13 @@ function floatToHalf(float) {
 function createSplatMesh(texture, count, indexBuffer) {
                 const geometry = new THREE.PlaneGeometry(4, 4);
                 geometry.setAttribute('index', new THREE.InstancedBufferAttribute(indexBuffer, 1));
-                
+                //geometry.setIndex(new THREE.InstancedBufferAttribute(indexBuffer, 1));
+                geometry.setAttribute('pos', new THREE.BufferAttribute(new Float32Array([
+                      -2, -2,
+                       2, -2,
+                       2,  2,
+                      -2,  2
+                    ]), 2))
                 console.log(geometry.attributes)
                 const uniforms = {
                     u_texture: { value: undefined },
@@ -159,6 +165,7 @@ function createSplatMesh(texture, count, indexBuffer) {
             uniform vec2 viewport;
 
             attribute uint index;
+            attribute vec2 pos;
 
             varying vec4 vColor;
             varying vec2 vPosition;
@@ -170,9 +177,6 @@ function createSplatMesh(texture, count, indexBuffer) {
                 vec4 cam = view * vec4(center, 1) ;
                 mat4 invertedProj = projection;
                 vec4 pos2d = invertedProj * cam;
-
-
-
 
                 float clip = 1.2 * pos2d.w;
                 if (pos2d.z < -clip || pos2d.x < -clip || pos2d.x > clip || pos2d.y < -clip || pos2d.y > clip) {
@@ -204,9 +208,9 @@ function createSplatMesh(texture, count, indexBuffer) {
                 vec2 minorAxis = min(sqrt(2.0 * lambda2), 1024.0) * vec2(diagonalVector.y, -diagonalVector.x);
 
                 vColor = clamp(pos2d.z/pos2d.w+1.0, 0.0, 1.0) * vec4((cov.w) & 0xffu, (cov.w >> 8) & 0xffu, (cov.w >> 16) & 0xffu, (cov.w >> 24) & 0xffu) / 255.0;
-                vPosition = position.xy;
+                vPosition = pos.xy;
 
-                vec2 vCenter = vec2(pos2d.xy) / pos2d.w;
+                vec2 vCenter = vec2(pos2d) / pos2d.w;
 
 
                 gl_Position = vec4(vCenter + (position.y * majorAxis + position.x * minorAxis) / viewport, 0.0, 1.0);
@@ -268,14 +272,20 @@ function updateSplatSorting(mesh, camera, vertexCount, splatData) {
                 let minDepth = Infinity;
                 let sizeList = new Int32Array(vertexCount);
                 //console.log(viewProjMatrix);
+                const matrixWorld = new THREE.Matrix4().copy(camera.matrixWorldInverse).invert();
+                const cameraPosition = new THREE.Vector3().setFromMatrixPosition(matrixWorld);
+
+                const inv = cameraPosition.z < 0 ? 1 : 1;
+                    //console.log(indexBuffer)
                 for (let i = 0; i < vertexCount; i++) {
-                    const inv = viewProjMatrix.elements[10] < 0 ? 1 : -1;
-                    const depth =
+
+                    let depth =
                         ((viewProjMatrix.elements[2] * f_buffer[8 * i + 0] +
                             viewProjMatrix.elements[6] * f_buffer[8 * i + 1] +
-                            viewProjMatrix.elements[10] * f_buffer[8 * i + 2] * inv) *
+                            viewProjMatrix.elements[10] * f_buffer[8 * i + 2] )   *
                             4096) |
                         0;
+                        depth *= inv;
                     sizeList[i] = depth;
                     if (depth > maxDepth) maxDepth = depth;
                     if (depth < minDepth) minDepth = depth;
@@ -294,7 +304,7 @@ function updateSplatSorting(mesh, camera, vertexCount, splatData) {
                 for (let i = 0; i < vertexCount; i++) {
                     indexBuffer[starts0[sizeList[i]]++] = i;
                 }
-                mesh.instanceMatrix.needsUpdate = true;
+                mesh.geometry.attributes.index.needsUpdate = true;
             }
 
 
@@ -339,8 +349,14 @@ AFRAME.registerComponent('get-source-dimentions', {
             }
 
         //console.log("Actual source dimensions:", this.data.clientWidth, this.data.clientHeight);
-            dimensions.h = this.data.clientHeight
-            dimensions.w = this.data.clientWidth
+
+            
+            if(!dimensions.h)
+            {
+                dimensions.h = this.data.clientHeight
+                dimensions.w = this.data.clientWidth // Once
+            }
+
     }
 })
 
@@ -375,6 +391,8 @@ AFRAME.registerComponent('get-matrix', {
 }
 )
 
+const lastSizes = {w:null,h:null}
+
 AFRAME.registerComponent('log-camera-params', {
   init: function () {
 
@@ -392,11 +410,7 @@ AFRAME.registerComponent('log-camera-params', {
         this.camera = markerCamera.components['camera'].camera;
         if (this.camera) {
             this.sceneEl.renderer.setClearColor(0x000000, 0);
-            
-            this.sceneEl.canvas.width = dimensions.w; // Get acutal source dimentions <----------------------------------------------------------------
-            this.sceneEl.canvas.height = dimensions.h;
-            this.camera.updateProjectionMatrix();
-            console.log(this.camera.projectionMatrix.toArray())
+            console.log("Camara", this.camera)
             
           //console.log('Camera Projection Matrix:', this.camera.projectionMatrix.toArray());
           //console.log('Camera Position:', this.camera.position.toArray());
@@ -420,15 +434,29 @@ AFRAME.registerComponent('log-camera-params', {
     }
 
         splatMesh.visible = true;
-        const projMat =  this.camera.projectionMatrix;
-        this.fx = projMat.elements[0] * dimensions.w / 2
-        this.fy = projMat.elements[5] * dimensions.h / 2
+        
+
+        if(lastSizes.w != this.sceneEl.canvas.width)
+        {
+            lastSizes.w = this.sceneEl.canvas.width
+            lastSizes.h = this.sceneEl.canvas.height
+            console.log("Waos")
+            //this.camera.updateProjectionMatrix();
+            const projMat =  this.camera.projectionMatrix;
+
+            splatMesh.material.uniforms.projection.value.copy(projMat);
+            globCam.projectionMatrix = projMat.clone()
+            //console.log(this.sceneEl.canvas.width, this.sceneEl.canvas.height)
+            //console.log(window.innerWidth, window.innerHeight)
+
+            this.fx = projMat.elements[0] * dimensions.w / 2
+            this.fy = projMat.elements[5] * dimensions.h / 2
 
 
-        splatMesh.material.uniforms.focal.value = new THREE.Vector2(this.fx, this.fy);
-        //splatMesh.material.uniforms.view.value.copy(this.camera.matrixWorldInverse)
-        splatMesh.material.uniforms.viewport.value = new THREE.Vector2(dimensions.w, dimensions.h)
-
+            splatMesh.material.uniforms.focal.value = new THREE.Vector2(this.fx, this.fy);
+            splatMesh.material.uniforms.viewport.value = new THREE.Vector2(dimensions.w, dimensions.h)
+        }
+        
         //this.sceneEl.canvas.width = dimensions.w; // Get acutal source dimentions <----------------------------------------------------------------
         //this.sceneEl.canvas.height = dimensions.h;
         //console.log(this.sceneEl.canvas.width, this.sceneEl.canvas.height)
@@ -436,8 +464,8 @@ AFRAME.registerComponent('log-camera-params', {
         //splatMesh.material.uniforms.projection.value.set(...getProjectionMatrix(this.fx, .fy, window.innerWidth, window.innerHeight));
         //splatMesh.material.uniforms.projection.value.transpose();
         
-        splatMesh.material.uniforms.projection.value.copy(this.camera.projectionMatrix);
-        globCam.projectionMatrix = this.camera.projectionMatrix.clone()
+
+        
         //updateSplatSorting(splatMesh, this.camera, vertexCount, splatData, indexBuffer);
 
         //console.log(dimensions.w, dimensions.h)

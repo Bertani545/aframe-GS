@@ -25,10 +25,10 @@
     -->
     
     
-    <a-marker preset='kanji' get-matrix get-source-dimentions>
-        <a-entity custom-instanced-mesh position="0 0 0" scale="3 3 3"></a-entity>
+    <a-marker preset='kanji' >
+        <a-entity custom-instanced-mesh get-matrix get-source-dimentions position="0 0 0"></a-entity>
     </a-marker>
-    <a-entity camera far=200 near=0.2 log-camera-params id="markerCam" look-controls="enabled: true"></a-entity>
+    <a-entity camera far=200 near=0.2  id="markerCam" log-camera-params look-controls='enable: true;'></a-entity>
     
 </a-scene> 
 
