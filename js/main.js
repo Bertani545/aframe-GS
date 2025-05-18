@@ -5,8 +5,10 @@
     let splatMesh;
     const loaded = {value: false};
 
+const Timer = {time: 0, active: false, Length: 2};
+
 async function main(){
-await fetch("./js/ensalada.splat").then(res => res.arrayBuffer()).then(buffer => {
+await fetch("./js/jengibre7.splat").then(res => res.arrayBuffer()).then(buffer => {
                 splatData = new Uint8Array(buffer);
                 vertexCount = Math.floor(splatData.length / rowLength);
                 indexBuffer = new Uint32Array(vertexCount);
@@ -133,6 +135,8 @@ await fetch("./js/ensalada.splat").then(res => res.arrayBuffer()).then(buffer =>
             }
 
 
+
+
 function createSplatMesh(texture, count, indexBuffer) {
                 const geometry = new THREE.PlaneGeometry(4, 4);
                 geometry.setAttribute('index', new THREE.InstancedBufferAttribute(indexBuffer, 1));
@@ -149,7 +153,10 @@ function createSplatMesh(texture, count, indexBuffer) {
                     projection: { value: new THREE.Matrix4() },
                     view: { value: new THREE.Matrix4() },
                     focal: { value: new THREE.Vector2(0,0) },
-                    viewport: { value: new THREE.Vector2(0,0) }
+                    viewport: { value: new THREE.Vector2(0,0) },
+
+                    time: {value: Timer.time},
+                    maxTime: {value: Timer.Length}
                 };
 
 
@@ -164,17 +171,52 @@ function createSplatMesh(texture, count, indexBuffer) {
             uniform vec2 focal;
             uniform vec2 viewport;
 
+
+
+            uniform float time;
+            uniform float maxTime;
+            uniform highp sampler2D u_noise;
+
+
+
             attribute uint index;
             attribute vec2 pos;
 
             varying vec4 vColor;
             varying vec2 vPosition;
 
+
+            float hashFunction(vec3 p)
+            {
+                vec3 temp = vec3(dot(p, vec3(127.1, 311.7, 74.7)), dot(p, vec3(269.5, 183.3, 246.1)), dot(p, vec3(113.5, 271.9, 124.6)));
+                return fract(sin(temp.x + temp.y + temp.z) * 43758.5453123);
+            }
+
+            vec2 hashToVec2(vec3 p)
+            {
+                return (vec2(hashFunction(p), hashFunction(p + 1.2345)) - 0.5) * 3.0;;
+            }
+
+            vec3 hashToVec3(vec3 p)
+            {
+                return (vec3(hashFunction(p), hashFunction(p + 1.2345), hashFunction(p - 1.2345)) - 0.5) * 5.0;;
+            }
+
+
+
             void main () {
                 uvec4 cen = texelFetch(u_texture, ivec2((uint(index) & 0x3ffu) << 1, uint(index) >> 10), 0);
 
-                vec3 center = uintBitsToFloat(cen.xyz);
-                vec4 cam = view * vec4(center, 1) ;
+                vec3 P2 = uintBitsToFloat(cen.xyz);
+                vec2 floorPos = hashToVec2(P2);
+                vec3 P0 = vec3(floorPos.x, 0., floorPos.y);
+
+                vec3 P1 = (P0 + P2) / 2.0 + hashToVec3(P2);
+
+                float t = min(max(0., time/maxTime), 1.0);
+                vec3 currentPos = (1.-t)*((1.-t)*P0+t*P1) + t*((1.-t)*P1+t*P2); 
+
+                vec4 cam = view * vec4(currentPos, 1) ;
                 mat4 invertedProj = projection;
                 vec4 pos2d = invertedProj * cam;
 
@@ -208,7 +250,7 @@ function createSplatMesh(texture, count, indexBuffer) {
                 vec2 minorAxis = min(sqrt(2.0 * lambda2), 1024.0) * vec2(diagonalVector.y, -diagonalVector.x);
 
                 vColor = clamp(pos2d.z/pos2d.w+1.0, 0.0, 1.0) * vec4((cov.w) & 0xffu, (cov.w >> 8) & 0xffu, (cov.w >> 16) & 0xffu, (cov.w >> 24) & 0xffu) / 255.0;
-                vPosition = position.xy;
+                vPosition = position.xy; // pos.xy for "artistic" style
 
                 vec2 vCenter = vec2(pos2d) / pos2d.w;
 
@@ -226,7 +268,7 @@ function createSplatMesh(texture, count, indexBuffer) {
                         void main () {
                             float A = -dot(vPosition, vPosition);
                             if (A < -4.0) discard;
-                            float B = exp(A) * vColor.a;
+                            float B = exp(A) * vColor.a + 0.01;
                             gl_FragColor = vec4(B * vColor.rgb, B);
                         }
                     `,
@@ -308,6 +350,24 @@ function updateSplatSorting(mesh, camera, vertexCount, splatData) {
             }
 
 
+
+
+document.addEventListener('DOMContentLoaded', () => {
+    const marker = document.querySelector('#myMarker');
+    marker.addEventListener('markerFound', () => {
+        if(loaded.value && Timer.time < Timer.Length) Timer.active = true;
+        
+
+    });
+
+    marker.addEventListener('markerLost', () => {
+      Timer.active = false;
+    });
+})
+
+
+
+
 AFRAME.registerComponent('custom-instanced-mesh', {
     init: function () {
 
@@ -323,9 +383,16 @@ AFRAME.registerComponent('custom-instanced-mesh', {
             this.el.object3D.add(splatMesh);
             this.break = true;
         }
-        
+        if(this.break && Timer.active)
+        {
+            Timer.time += dt / 1000;
+            if(Timer.time > Timer.Length) Timer.active = false;
+
+            splatMesh.material.uniforms.time.value = Timer.time;
+            console.log(Timer.time)
+        }
+        //console.log(Timer.time)
     }
-    //tick: function(t, dt){}
   });
 
 
@@ -433,7 +500,7 @@ AFRAME.registerComponent('log-camera-params', {
         this.once.val1 = true;
     }
 
-        splatMesh.visible = true;
+        
         
 
         if(lastSizes.w != this.sceneEl.canvas.width)
@@ -455,6 +522,7 @@ AFRAME.registerComponent('log-camera-params', {
 
             splatMesh.material.uniforms.focal.value = new THREE.Vector2(this.fx, this.fy);
             splatMesh.material.uniforms.viewport.value = new THREE.Vector2(dimensions.w, dimensions.h)
+
         }
         
         //this.sceneEl.canvas.width = dimensions.w; // Get acutal source dimentions <----------------------------------------------------------------
@@ -475,6 +543,11 @@ AFRAME.registerComponent('log-camera-params', {
         //console.log(this.fx, this.fy)
   }
 });
+
+
+
+
+
 
 
 main();
